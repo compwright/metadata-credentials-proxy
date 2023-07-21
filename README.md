@@ -1,114 +1,79 @@
-# Local AWS metadata credentials proxy
+# Simulated AWS EC2 metadata service for Docker
 
-This metadata proxy can be used to pass AWS credentials to docker containers
-needing access tokens. It uses user credentials from environmental variables
-or ~/.aws/config and uses them to get STS assume role credentials. The user
-credentials are read when the proxy starts and the STS credentials are cached.
-The cached credentials are updated automatically when they expire.
+This service simulates the Amazon Web Services EC2 metadata service so that
+Docker containers can assume an IAM role as if they were EC2 instances.
 
-The metadata proxy responds to the following queries:
+The metadata API responds to the following queries:
 
 * http://169.254.169.254/latest/meta-data/iam/security-credentials
 * http://169.254.169.254/latest/meta-data/iam/security-credentials/dev
 
-The IAM role is determined by looking at the env variable IAM_ROLE of the
-requesting docker container. It needs to include the full arn of the role, not
-just the role name. If a role has been given as a command line parameter, it
-is used as default role when container does not have IAM_ROLE set.
-
-This takes away the need for copying AWS credentials inside docker images when
-building outside AWS.
+STS credentials are short-lived, cached, and updated automatically when they expire.
 
 ## Security
 
-Like the metadata service on Amazon EC2 instance, the service does not provide
-any kind of authentication. Any process that is able to access the service can
-get credentials. On macOS limiting access to only other docker containers
-running in same network prevents applications on the host from accessing it, but
-other containers may still forward requests to it. The service should not be
-run on any publicly available host.
+Like the metadata service on Amazon EC2 instances, no authentication is provided.
+Any process that is able to access this service will be able to obtain credentials.
 
-## Usage on macOS
+**This service should not be run on any publicly available host or in any production environment.**
 
-The metadata proxy needs to run inside docker to be able to inspect the
-env variables of other containers. For this it also needs access to docker.sock.
+## Configuration
 
-The metadata proxy needs to run with IP 169.254.169.254. A separate network
-named metadata should be created for this:
+The AWS credentials used to get STS assumed role credentials must be provided in
+environment variables or `~/.aws/config`.
 
-$ docker network create -d bridge --subnet 169.254.169.0/24 metadata
+The IAM role to assume is determined by looking at the env variable `IAM_ROLE`
+of the requesting Docker container. If this variable cannot be found, the default
+role is used, which can be specified as the `DEFAULT_IAM_ROLE` environment
+variable, or as a command line parameter to the `metadata` binary.
 
-To build and start the container on macOS, run the run.sh script:
+> Note: the full role ARN must be specified, not just the role name.
 
-$ ./run.sh [default iam role]
+## Usage
 
-For other containers to be able to access the metadata proxy, they need to be
-in the metadata network. Something like this is needed in docker-compose.yml:
+The metadata service needs to run inside Docker to be able to inspect the
+environment variables of other containers. For this it also needs access to `docker.sock`.
 
-```
-networks:
-  default:
-    name: metadata
-    external: true
-```
+The metadata service must be run with a specific IP: `169.254.169.254`. Specifying static
+IP addresses for Docker containers requires an external network. Create one for this:
 
-To set the IAM_ROLE in docker-compose.yml, add a IAM_ROLE variable like this:
+    $ docker network create -d bridge --subnet 169.254.169.0/24 ec2_metadata
+
+To build and start the container, run:
+
+    $ docker-compose up
+
+To give other Docker containers access to the metadata service, specify their IAM
+role and grant them access to the network in `docker-compose.yml`:
 
 ```
 version: "2"
 
 services:
-  example:
+  app:
     build: .
     environment:
-      - IAM_ROLE=arn:aws:iam::1234567890:role/example_role
-```
+      - 'IAM_ROLE=arn:aws:iam::1234567890:role/example_role'
+    networks:
+      - metadata
 
-## Network layout on macOS
-
-Example with a build container that requires AWS IAM credentials. The build
-container needs to be connected to the same metadata bridge where metadata
-container runs.
-
-```
-┌───────────┐ ┌──────────┐
-│ metadata  │ │  Build   │   ┌───────────┐  ┌────────────┐
-│ container │ │container │   │Container X│  │Container Y │
-└───────────┘ └──────────┘   └───────────┘  └────────────┘
-      ▲             ▲              ▲               ▲
-      └───────┬─────┘              └──────┬────────┘
-              ▼                           ▼
-     ┌────────────────┐          ┌────────────────┐
-     │ metadata bridge│          │ docker0 bridge │
-     └────────────────┘          └────────────────┘
-              │                           │
-              └──────────┬────────────────┘
-                         ▼
-                    ┌────────┐
-                    │ Docker │
-                    └────────┘
-                         │
-                         ▼
-                 ┌───────────────┐
-                 │   OS X host   │
-                 └───────────────┘                        
+networks:
+  metadata:
+    name: ec2_metadata
+    external: true
 ```
 
 ## Testing
 
-To test that it works, first start a container in metadata network:
+To test that it works, first start the service:
 
-```
-docker run --network metadata -it ubuntu bash
-apt-get update && apt-get install curl
-```
+    $ docker-compose up --detach
 
-And then query the proxy:
+Then start a new container on the `ec2_metadata` network (substitute your actual role ARN):
 
-```
-curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
-```
+    $ docker run --network ec2_metadata --env IAM_ROLE=arn:aws:iam::1234567890:role/example_role -it ubuntu bash
+    $ apt-get update && apt-get install -y curl
 
-```
-curl http://169.254.169.254/latest/meta-data/iam/security-credentials/dev
-```
+Finally, query the service:
+
+    $ curl http://169.254.169.254/latest/meta-data/iam/security-credentials/dev
