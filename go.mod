@@ -1,4 +1,4 @@
-module github.com/compwright/ec2-metadata-service
+module github.com/compwright/docker-ec2-metadata
 
 go 1.20
 
