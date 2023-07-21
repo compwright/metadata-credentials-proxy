@@ -3,7 +3,6 @@ version: "2"
 services:
   metadata:
     build: .
-    command: /opt/metadata/metadata_wrapper_linux.sh
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     environment:
