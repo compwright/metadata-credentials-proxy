@@ -1,0 +1,29 @@
+#!/usr/bin/env php
+<?php
+
+use Compwright\DockerEc2Metadata\ConfigurationResolver;
+use Compwright\DockerEc2Metadata\ServeCommand;
+use Compwright\DockerEc2Metadata\ServerFactory;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\SingleCommandApplication;
+
+if (isset($_composer_autoload_path)) {
+    include $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
+} else {
+    require dirname(__DIR__) . '/vendor/autoload.php';
+}
+
+$server = new ServeCommand(
+    new ServerFactory(
+        new ConfigurationResolver()
+    )
+);
+
+(new SingleCommandApplication())
+    ->setName('docker-ec2-metadata')
+    ->addArgument('default-role', InputArgument::OPTIONAL, 'Default role ARN', null)
+    ->addOption('port', 'p', InputOption::VALUE_REQUIRED, 'Listen on port (default: 8000)', '8000')
+    ->addOption('listen', 'l', InputOption::VALUE_REQUIRED, 'Listen on address (default: 169.254.169.254)', '169.254.169.254')
+    ->setCode($server)
+    ->run();

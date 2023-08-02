@@ -1,0 +1,39 @@
+{
+    "name": "compwright/docker-ec2-metadata",
+    "type": "library",
+    "description": "AWS EC2 metadata service simulator for Docker",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jonathon Hill",
+            "email": "jonathon@compwright.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Compwright\\DockerEc2Metadata\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Compwright\\DockerEc2Metadata\\": "tests/"
+        }
+    },
+    "require": {
+        "aws/aws-sdk-php": "^3.276",
+        "composer-runtime-api": "^2.2",
+        "league/route": "^5.1",
+        "psr/log": "^1.1",
+        "react/http": "^1.9",
+        "react/socket": "^1.13",
+        "symfony/console": "^5.4"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.22",
+        "phpstan/phpstan": "^1.10",
+        "phpunit/phpunit": "^9.6"
+    },
+    "bin": [
+        "bin/docker-ec2-metadata"
+    ]
+}

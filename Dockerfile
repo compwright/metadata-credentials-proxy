@@ -1,27 +1,12 @@
-FROM golang:1.20 as builder
+FROM ubuntu AS test
+RUN apt-get update && apt-get install -y curl
 
-## GOLANG env
-ARG GOPROXY="https://proxy.golang.org|direct"
-ARG GO111MODULE="on"
-
-# Copy go.mod and download dependencies
-WORKDIR /root
-COPY go.mod .
-COPY go.sum .
-RUN go mod download
-
-## GOLANG env
-ARG CGO_ENABLED=0
-ARG GOOS=linux
-ARG GOARCH=amd64
-
-# Build
+FROM php:8.2-alpine
+RUN apk add --no-cache docker-cli
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+ENV COMPOSER_ALLOW_SUPERUSER 1
+WORKDIR /opt/docker-ec2-metadata
 COPY . .
-RUN make
-
-# Build the final image with only the binary
-FROM alpine
-WORKDIR /root
-COPY --from=builder /root/metadata .
-COPY LICENSE.txt .
-ENTRYPOINT ["/root/metadata"]
+RUN composer install --no-scripts --no-autoloader --prefer-dist --quiet \
+    && rm -rf .composer/cache
+ENTRYPOINT ["/opt/docker-ec2-metadata/bin/docker-ec2-metadata", "-p", "80", "-vvv"]
